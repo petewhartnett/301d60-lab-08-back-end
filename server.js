@@ -4,7 +4,7 @@ const express = require('express');
 const app = express();
 const cors = require('cors');
 const superagent = require('superagent');
-
+const pg = require('pg');
 
 const PORT = process.env.PORT || 3000;
 
@@ -12,6 +12,20 @@ const PORT = process.env.PORT || 3000;
 require('dotenv').config();
 
 app.use(cors());
+
+
+const client = new pg.Client(process.env.DATABASE_URL);
+client.on('error', error => console.error(error));
+client.connect();
+
+app.get('/', (req, res) => {
+  const SQL = 'SELECT * FROM locations;';
+  client.query(SQL).then(sqlResponse => {
+    console.log(sqlResponse);
+    res.send(sqlResponse.rows);
+  });
+});
+
 
 //Routes
 app.get('/', (request, response) => {
@@ -24,6 +38,20 @@ app.get('/events', searchEvents);
 
 //Handlers
 function getLocation(request, response){
+  const SQL = `INSERT INTO locations(
+    id,
+   search_query,
+   formatted_query,
+   lattitude,
+   longitude
+   ) VALUES(
+     'seattle',
+     'Seattle, WA',
+     '123',
+     '789'
+   );`;
+
+
   return searchLatToLng(request.query.data || 'lynwood')
     .then(locationData => {
       response.send(locationData);
@@ -83,7 +111,7 @@ function searchLatToLng(query){
 
 
       const location = new Location(geoData.body.results[0]);
-      console.log('what', geoData.body.results)
+     // console.log('what', geoData.body.results)
       return location;
     })
     .catch(err => console.error(err))
@@ -115,7 +143,7 @@ function searchEvents(request, response){
       events.map(event => eventArray.push(new Eventful(event)));
 
       response.send(eventArray);
-      console.log('did', jsonData.events.event)
+      //console.log('did', jsonData.events.event)
 
     })
 }
