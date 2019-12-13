@@ -23,6 +23,7 @@ app.get('/', (request, response) => {
 app.get('/location', getLocation);
 app.get('/weather', getWeather);
 app.get('/events', searchEvents);
+app.get('/movies', searchMovie);
 
 //postgres
 const client = new pg.Client(process.env.DATABASE_URL);
@@ -57,6 +58,8 @@ function getWeather(request, response){
     })
 }
 
+
+
 // function getEvent(request, response){
 //   return searchEvents(request.query.data)
 //     .then(eventData => {
@@ -73,7 +76,7 @@ function Location(location){
   this.latitude = location.geometry.location.lat;
   this.longitude = location.geometry.location.lng;
   this.long_name = location.address_components[0].long_name;
-
+  this.short_name= location.address_components[0].short_name;
   // weatherLocations.push(this.latitude);
   // weatherLocations.push(this.longitude);
 }
@@ -91,6 +94,17 @@ function Eventful(event){
   this.summary = event.description;
 
 }
+function Movies(movie){
+  this.title = movie.title;
+  this.overview = movie.overview;
+  this.averageVotes = movie.vote_average;
+  this.totalVotes = movie.vote_count;
+  this.image_url = movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : '';
+  this.popularity = movie.popularity;
+  this.releasedOn = movie.release_date;
+ 
+}
+
 
 // searching location from SQL
 function lookUpLocation(query, handler){
@@ -150,6 +164,26 @@ function searchWeather(query){
       return weatheArray;
     })
 }
+
+function searchMovie(request, response){
+  const movieDataUrl = `https://api.themoviedb.org/3/search/movie?query= ${request.query.data.search_query}&api_key=${process.env.MOVIE_API_KEY}`
+  // let darkSkyData = require('./data/darksky.json');
+  return superagent.get(movieDataUrl)
+    .then(movieData => {
+      const parsedMovieData = JSON.parse(movieData.text);
+      let movieArray = [];
+      parsedMovieData.results.map(movie => movieArray.push(new Movies(movie)));
+      console.log('movie array: ',movieArray);
+     
+      response.send(movieArray);
+    })
+}
+
+
+
+
+
+
 
 // Search for events
 function searchEvents(request, response){
