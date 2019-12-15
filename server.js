@@ -24,6 +24,7 @@ app.get('/location', getLocation);
 app.get('/weather', getWeather);
 app.get('/events', searchEvents);
 app.get('/movies', searchMovie);
+app.get('/yelp', searchYelpFood);
 
 //postgres
 const client = new pg.Client(process.env.DATABASE_URL);
@@ -60,33 +61,26 @@ function getWeather(request, response){
 
 
 
-// function getEvent(request, response){
-//   return searchEvents(request.query.data)
-//     .then(eventData => {
-//       response.send(eventData);
-//     })
 
-// }
+//CONSTRUCTORS
 
-// let weatherLocations = [];
-
-//Constructors
+//LOCATION 
 function Location(location){
   this.formatted_query = location.formatted_address;
   this.latitude = location.geometry.location.lat;
   this.longitude = location.geometry.location.lng;
   this.long_name = location.address_components[0].long_name;
   this.short_name= location.address_components[0].short_name;
-  // weatherLocations.push(this.latitude);
-  // weatherLocations.push(this.longitude);
 }
 
+//WEATHER FORCAST 
 function Daily(dailyForecast){
   this.forecast = dailyForecast.summary;
   // console.log('what', dailyForecast.summary);
   this.time = new Date(dailyForecast.time * 1000).toDateString();
 }
 
+//EVENTS
 function Eventful(event){
   this.link = event.url;
   this.name = event.title;
@@ -94,6 +88,7 @@ function Eventful(event){
   this.summary = event.description;
 
 }
+//MOVIES
 function Movies(movie){
   this.title = movie.title;
   this.overview = movie.overview;
@@ -105,8 +100,17 @@ function Movies(movie){
  
 }
 
+//RESTUARANTS
+function Restuarants(business){
+  this.name = business.name;
+  this.image_url = business.image_url;
+  this.price = business.price;
+  this.rating = business.rating;
+  this.url = business.url;
+}
 
-// searching location from SQL
+
+// SEARCHING LOCATION FROM SQL
 function lookUpLocation(query, handler){
   const SQL = 'SELECT * FROM locations WHERE search_query=$1';
   const values = [query];
@@ -136,7 +140,7 @@ function searchLatToLng(query){
       const location = new Location(geoData.body.results[0]);
       let SQL = `INSERT INTO locations (search_query, formatted_query, latitude, longitude) VALUES($1, $2, $3, $4) RETURNING id`;
 
-      //store it in our DB
+      //STORE IN DATABASE
       return client.query(SQL, [query, location.formatted_query, location.latitude, location.longitude])
         .then((result) =>{
           console.log(result);
@@ -154,10 +158,8 @@ function searchLatToLng(query){
 // Search for Weather data
 function searchWeather(query){
   const darkSkyDataUrl = `https://api.darksky.net/forecast/${process.env.WEATHER_API_KEY}/${query.latitude},${query.longitude}`
-  // let darkSkyData = require('./data/darksky.json');
   return superagent.get(darkSkyDataUrl)
     .then(weatherData => {
-
       let weatheArray = [];
       weatherData.body.daily.data.map(forecast => weatheArray.push(new Daily(forecast)));
       // console.log(weatheArray);
@@ -165,6 +167,7 @@ function searchWeather(query){
     })
 }
 
+//MOVIE SEARCH BELOW 
 function searchMovie(request, response){
   const movieDataUrl = `https://api.themoviedb.org/3/search/movie?query= ${request.query.data.search_query}&api_key=${process.env.MOVIE_API_KEY}`
   // let darkSkyData = require('./data/darksky.json');
@@ -174,18 +177,32 @@ function searchMovie(request, response){
       let movieArray = [];
       parsedMovieData.results.map(movie => movieArray.push(new Movies(movie)));
       console.log('movie array: ',movieArray);
-     
       response.send(movieArray);
     })
 }
 
+//YELP SEARCH BELOW
+
+function searchYelpFood(request,response){
+  const searchDataUrl = `https://api.yelp.com/v3/businesses/search?term=restaurants&latitude=${request.query.data.latitude}&longitude=${request.query.data.longitude}&limit=20`
+  return superagent.get(searchDataUrl)
+  //Bearer token is an HTTP authentication sceme, information researched on Stack Overflow and google developers
+    .set('Authorization', `Bearer ${process.env.YELPS_API_KEY}`)
+    .then(yelpData => {
+
+      const foodParse = JSON.parse(foodData.text);
+      let foodData = foodParse.businesses.map( foodLocations => {
+        let yelpFoodObj = new Restuarants(foodLocations);
+        return yelpFoodObj;
+      })
+      response.status(200).send(yelpData);
+    })
+    .catch(err => { console.error(err)});
+}
 
 
 
-
-
-
-// Search for events
+// SEARCH FOR EVENTS
 function searchEvents(request, response){
   const eventsDataUrl = `http://api.eventful.com/json/events/search?location=${request.query.data.formatted_query}&app_key=${process.env.EVENTBRITE_API_KEY}`
   return superagent.get(eventsDataUrl)
@@ -201,11 +218,14 @@ function searchEvents(request, response){
     })
 }
 
+//END SEARCH FOR EVENTS
+
 //Error handler
 app.get('/*', function(request, response){
   response.status(404).send('Try again!')
 })
 
+//PORT LISTENTER
 app.listen(PORT, () => {
   console.log(`app running on PORT: ${PORT}`);
 });
